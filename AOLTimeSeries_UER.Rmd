@@ -1,0 +1,1076 @@
+---
+title: "AOL_TimeSeries_UER"
+author: "Kevin Laurent Oktavian Putra"
+date: "2024-05-05"
+output: pdf_document
+---
+
+# Read Dataset
+
+```{r}
+library(readxl)
+Unemployment <- read_excel("C:/Users/angel/OneDrive - Bina Nusantara/Semester 6/Time Series Analysis/Unemployment.xlsx")
+Unemployment
+```
+
+# Import Library
+
+```{r warning=FALSE}
+library(tseries)
+library(forecast)
+library(car)
+library(nortest)
+library(lmtest)
+```
+
+# ARIMA
+
+## Time Series Plot
+
+```{r}
+datats = ts(Unemployment[2], start = c(2005,1), end = c(2023, 2), frequency = 2)
+datats
+ts.plot(datats)
+```
+
+## Split Data Training and Data Testing
+
+```{r}
+train_data <- datats[1:30]
+test_data <- datats[31:38]
+
+train_data
+test_data
+
+ts.plot(train_data, main="Data Training")
+ts.plot(test_data, main="Data Testing")
+
+```
+
+## Stationer terhadap variance
+
+```{r}
+library(car)
+p <- powerTransform(train_data)
+summary(p)
+```
+
+## Stasioner terhadap mean
+
+```{r}
+adf_result <- adf.test(train_data)
+print(adf_result)
+```
+
+##Differencing
+
+```{r}
+diff_datats=diff(train_data)
+adf.test(diff_datats)
+```
+
+## Identifikasi ordo ARIMA (ACF & PACF)
+
+```{r}
+acf(diff_datats, lag.max = 20)
+pacf(diff_datats, lag.max = 20)
+```
+
+## Estimasi parameter model ARIMA
+
+```{r}
+# model1 = arima(train_data, order=c(0,1,0)) 
+model2 = arima(train_data, order=c(0,1,1))
+model3 = arima(train_data, order=c(0,1,2))
+model1 = arima(train_data, order=c(0,1,3))
+model4 = arima(train_data, order=c(1,1,0)) 
+model5 = arima(train_data, order=c(1,1,1))
+model6 = arima(train_data, order=c(1,1,2))
+model7 = arima(train_data, order=c(1,1,3))
+model8 = arima(train_data, order=c(2,1,0)) 
+model9 = arima(train_data, order=c(2,1,1)) 
+```
+
+```{r}
+model12 = auto.arima(train_data)
+coeftest(model12)
+```
+
+## Uji signifikansi paremeter
+
+```{r}
+coeftest(model2)
+coeftest(model3)
+coeftest(model1)
+coeftest(model4)
+coeftest(model5)
+coeftest(model6)
+coeftest(model7)
+coeftest(model8)
+coeftest(model9)
+```
+
+```{r}
+summary(model5)
+summary(model9)
+```
+
+## Uji asumsi
+
+### White noise
+
+```{r}
+er5 = residuals(model5)
+Box.test(er5, type="Ljung-Box")
+
+er9= residuals(model9)
+Box.test(er9, type="Ljung-Box")
+```
+
+### Berdistribusi normal
+
+```{r warning=FALSE}
+lillie.test(er5)
+lillie.test(er9)
+```
+
+## Evaluasi model
+
+```{r}
+calculate_aicc <- function(model) {
+  n <- length(model$residuals)  # Sample size
+  k <- length(coef(model)) + 1  # Number of parameters, including the intercept
+  aic <- AIC(model)
+  aicc <- aic + (2 * k * (k + 1)) / (n - k - 1)
+  return(aicc)
+}
+```
+
+```{r}
+# Hitung metrik performa
+aicc5 <- calculate_aicc(model5)
+aicc9 <- calculate_aicc(model9)
+
+aicc5
+aicc9
+
+BIC(model5)
+BIC(model9)
+
+rmse_m5_arima <- sqrt(mean(er5^2))
+rmse_m9_arima <- sqrt(mean(er9^2))
+
+rmse_m5_arima
+rmse_m9_arima
+```
+
+## Forecasting
+
+```{r}
+predict_m5_arima <- predict(model5, n.ahead=8)
+predict_m5_arima
+```
+```{r}
+predict_m5_arima_3years <- predict(model5, n.ahead=11)
+predict_m5_arima_3years <- as.data.frame(predict_m5_arima_3years$pred)
+colnames(predict_m5_arima_3years) <- "Forecast"
+predict_m5_arima_3years
+```
+
+```{r}
+errortest_m5_arima = predict_m5_arima$pred - test_data
+errortest_m5_arima
+
+print("RMSE Test Model 5:")
+(rmsetest_m5_arima = sqrt(mean(errortest_m5_arima^2)))
+```
+```{r}
+library(Metrics)
+```
+
+```{r}
+MAPEtest_m5_arima <- mape(test_data, predict_m5_arima$pred)
+MAPEtest_m5_arima 
+```
+```{r}
+MAEtest_m5_arima <- mae(test_data, predict_m5_arima$pred)
+MAEtest_m5_arima
+```
+
+```{r}
+forecast_m5_arima <- forecast(model5, level=c(90), h=6*2)
+
+# Plot the forecast with prediction intervals
+autoplot(forecast_m5_arima, xlab = "Time", ylab = "Values", main = "Forecast with 90% Prediction Intervals")
+```
+
+```{r}
+predict_m9_arima <- predict(model9, n.ahead=8)
+predict_m9_arima
+```
+
+```{r}
+errortest_m9_arima = predict_m9_arima$pred - test_data
+errortest_m9_arima
+
+print("RMSE Test Model 9:")
+(rmsetest_m9_arima = sqrt(mean(errortest_m9_arima^2)))
+```
+```{r}
+MAPEtest_m9_arima <- mape(test_data,predict_m9_arima$pred)
+MAPEtest_m9_arima
+```
+
+```{r}
+MAEtest_m9_arima <- mae(test_data, predict_m9_arima$pred)
+MAEtest_m9_arima
+```
+
+```{r}
+forecast_m9_arima <- forecast(model9, level=c(90), h=6*2)
+
+# Plot the forecast with prediction intervals
+autoplot(forecast_m9_arima, xlab = "Time", ylab = "Values", main = "Forecast with 90% Prediction Intervals")
+```
+
+# Time Series Regression
+
+```{r}
+tsr_data <- train_data
+tsr_data <- as.data.frame(tsr_data)
+colnames(tsr_data) <- "Unemployment"
+
+n = nrow(tsr_data)
+n
+
+tsr_data$t = seq(1:n)
+head(tsr_data)
+```
+
+## TSR : Linear
+
+### Membuat Model Linear
+
+```{r}
+modellm = lm(Unemployment~t, data=tsr_data)
+```
+
+### Uji signifikansi parameter (Serentak + Parsial)
+
+```{r}
+summary(modellm)
+```
+
+Untuk uji serentak : Karena pada uji F, p-value dibawah 0.1, maka setidaknya ada satu variabel yang signifikan / t berpengaruh terhadap Unemployment Untuk uji parsial : Karena pada uji t, p-value dibawah 0.1, maka variabel t berpengaruh secara signifikan terhadap Unemployment.
+
+### Uji Asumsi
+
+#### Uji independen (nonautokorelasi)
+
+```{r}
+library(lmtest)
+```
+
+```{r}
+dwtest(modellm, alternative="two.sided")
+```
+
+H0 : rho = 0 (rho independent / tidak ada autokorelasi), H1 : rho /= 0 Karena p-value \< alpha, maka tolak H0. Tidak memenuhi karena ada autokorelasi
+
+#### Uji Identik (homoskedastisitas)
+
+```{r}
+bptest(modellm)
+```
+
+H0 : residual identik (homoskedastisitas / varians konstan), H1 : residual tidak identik Karena p-value \> alpha, maka gagal tolak H0. Uji terpenuhi karena varians konstan
+
+#### Uji Normalitas
+
+```{r}
+library(nortest)
+
+er_modellm = residuals(modellm)
+lillie.test(er_modellm)
+```
+
+H0 : residual berdist. normal, H1 : residual tidak berdist, normal Karena p-value > alpha, maka gagal Tolak H0 -\> asumsi terpenuhi karena residual berdist. normal
+
+### Hitung Kriteria Kebaikan Model (RMSE)
+```{r}
+mse_modellm <- mean(er_modellm^2)
+mse_modellm
+```
+
+```{r}
+rmse_modellm <- sqrt(mean(er_modellm^2))
+rmse_modellm
+```
+### Hitung Kriteria Kebaikan Model (MAPE)
+```{r}
+MAPE_modellm <- mean(abs(er_modellm / train_data)) * 100
+MAPE_modellm
+```
+### Hitung Kriteria Kebaikan Model (MAE)
+```{r}
+MAE_modellm <- mean(abs(er_modellm))
+MAE_modellm
+```
+
+### Forecasting
+
+```{r}
+# Lakukan forecast untuk 8 periode selanjutnya
+predict_modellm <- predict(modellm, newdata = data.frame(t = seq(length(tsr_data) + 1, length(tsr_data) + 8)))
+
+predict_modellm
+```
+
+```{r}
+# Hitung selisih antara hasil forecast dan test_data
+error_modellm <- predict_modellm - test_data
+
+# Hitung RMSE
+rmsetest_modellm <- sqrt(mean(error_modellm^2))
+msetest_modellm <- mean(error_modellm^2)
+
+# Tampilkan RMSE
+print(rmsetest_modellm)
+print(msetest_modellm)
+```
+```{r}
+MAPEtest_modellm <- mape(test_data, predict_modellm)
+MAPEtest_modellm
+```
+```{r}
+MAEtest_modellm <- mae(test_data, predict_modellm)
+MAEtest_modellm
+```
+
+## TSR : Exponential
+
+### Membuat model exponential
+
+```{r}
+tsr_data$lny = log(tsr_data$Unemployment)
+head(tsr_data)
+
+modelexp  <- lm(lny~t, data=tsr_data)
+```
+
+### Uji Signifikansi Parameter (Serentak + Parsial)
+
+```{r}
+summary(modelexp)
+```
+
+Untuk uji serentak : Karena pada uji F, p-value dibawah 0.1, maka setidaknya ada satu variabel yang signifikan / t berpengaruh terhadap ln dari Unemployment Untuk uji parsial : Karena pada uji t, p-value dibawah 0.1, maka variabel t berpengaruh secara signifikan terhadap ln dari Unemployment.
+
+```{r}
+# nulis persamannya pake yang pertama, jadi karena nilai koef-nya 7.45. maka :
+# ln (a) = 7.45
+
+# cara lain dptin persamannya
+a_exp = exp(modelexp$coefficients[1])
+a_exp
+```
+
+### Uji Asumsi
+
+#### Uji Independensi (Nonautokorelasi)
+
+```{r}
+dwtest(modelexp, alternative="two.sided")
+```
+
+H0 : rho = 0 (rho independent / tidak ada autokorelasi), H1 : rho /= 0 Karena p-value \< alpha, maka tolak H0. Tidak memenuhi karena ada autokorelasi
+
+#### Uji Identik (Homoskedastisitas)
+
+```{r}
+bptest(modelexp)
+```
+
+H0 : residual identik (homoskedastisitas / varians konstan), H1 : residual tidak identik Karena p-value > alpha, maka gagal tolak H0. Uji terpenuhi karena varians konstan
+
+#### Uji Normalitas
+
+```{r}
+yhat = exp(fitted.values(modelexp))
+head(yhat)
+erexp = tsr_data$Unemployment-yhat
+
+lillie.test(erexp) 
+```
+
+H0 : residual berdist. normal, H1 : residual tidak berdist, normal Karena p-value > alpha, maka gagal Tolak H0 -\> asumsi terpenuhi karena residual berdist. normal
+
+### Hitung Kriteria Kebaikan Model (RMSE)
+
+```{r}
+mse_modelexp <- mean(erexp^2)
+mse_modelexp
+```
+
+```{r}
+rmse_modelexp <- sqrt(mean(erexp^2))
+rmse_modelexp
+```
+### Hitung Kriteria Kebaikan Model (MAPE)
+```{r}
+MAPE_modelexp <- mean(abs(erexp / train_data)) * 100
+MAPE_modelexp
+```
+
+### Hitung Kriteria Kebaikan Model (MAE)
+```{r}
+MAE_modelexp <- mean(abs(erexp))
+MAE_modelexp
+```
+
+### Forecasting
+
+```{r}
+# Lakukan forecast untuk 8 periode selanjutnya
+predict_modelexp <- predict(modelexp, newdata = data.frame(t = seq(length(tsr_data) + 1, length(tsr_data) + 8)))
+
+predict_modelexp <- exp(predict_modelexp)
+predict_modelexp
+```
+
+```{r}
+# Hitung selisih antara hasil forecast dan test_data
+errortest_modelexp <- predict_modelexp - test_data
+
+# Hitung RMSE
+rmsetest_modelexp <- sqrt(mean(errortest_modelexp^2))
+msetest_modelexp <- mean(errortest_modelexp^2)
+
+# Tampilkan RMSE
+print(rmsetest_modelexp)
+print(msetest_modelexp)
+```
+```{r}
+MAPEtest_modelexp <- mape(test_data, predict_modelexp)
+MAPEtest_modelexp
+```
+```{r}
+MAEtest_modelexp <- mae(test_data, predict_modelexp)
+MAEtest_modelexp
+```
+
+## TSR : Quadratic
+
+### Membuat model quadratic
+
+```{r}
+tsr_data$t2 = tsr_data$t^2
+head(tsr_data)
+
+modelquad <- lm(Unemployment~t+t2, data = tsr_data)
+```
+
+### Uji Signifikansi Parameter (Serentak + Parsial)
+
+```{r}
+summary(modelquad)
+```
+
+Untuk uji serentak : Karena pada uji F, p-value dibawah 0.1, maka setidaknya ada satu variabel yang signifikan. Untuk uji parsial : Karena pada uji t, p-value dibawah 0.1, maka variabel t berpengaruh secara signifikan terhadap Unemployment dan variabel t2 berpengaruh secara signfikan terhadap Unemployment.
+
+### Uji Asumsi
+
+#### Uji Independensi (Nonautokorelasi)
+
+```{r}
+dwtest(modelquad, alternative="two.sided")
+```
+
+H0 : rho = 0 (rho independent / tidak ada autokorelasi), H1 : rho /= 0 Karena p-value > alpha, maka gagal tolak H0. Artinya memenuhi karena tidak ada autokorelasi
+
+#### Uji Identik (Homoskedastisitas)
+
+```{r}
+bptest(modelquad)
+```
+
+H0 : residual identik (homoskedastisitas / varians konstan), H1 : residual tidak identik Karena p-value < alpha, maka tolak H0. Uji tidak terpenuhi karena varians tidak konstan
+
+#### Uji Normalitas
+
+```{r}
+error_modelquad = residuals(modelquad)
+
+lillie.test(error_modelquad) 
+```
+
+H0 : residual berdist. normal, H1 : residual tidak berdist, normal Karena p-value \> alpha, maka gagal Tolak H0 -\> asumsi terpenuhi karena residual berdist. normal
+
+### Hitung Kriteria Kebaikan Model (RMSE)
+```{r}
+mse_modelquad <- mean(error_modelquad^2)
+mse_modelquad
+```
+
+```{r}
+rmse_modelquad <- sqrt(mean(error_modelquad^2))
+rmse_modelquad
+```
+### Hitung Kriteria Kebaikan Model (MAPE)
+```{r}
+MAPE_modelquad <- mean(abs(error_modelquad / train_data)) * 100
+MAPE_modelquad
+```
+
+### Hitung Kriteria Kebaikan Model (MAE)
+```{r}
+MAE_modelquad <- mean(abs(error_modelquad))
+MAE_modelquad
+```
+
+### Forecasting
+
+```{r}
+# Melakukan forecast untuk 8 periode selanjutnya
+future_periods <- 8
+future_t <- seq(nrow(tsr_data) + 1, nrow(tsr_data) + future_periods)
+future_t2 <- future_t^2
+future_data <- data.frame(t = future_t, t2 = future_t2)
+
+# Prediksi menggunakan model regresi kuadratik
+predict_modelquad <- predict(modelquad, newdata = future_data)
+predict_modelquad
+```
+
+```{r}
+# Hitung selisih antara hasil forecast dan test_data
+errortest_modelquad <- predict_modelquad - test_data
+
+# Hitung RMSE
+rmsetest_modelquad <- sqrt(mean(errortest_modelquad^2))
+msetest_modelquad <- mean(errortest_modelquad^2)
+
+# Tampilkan RMSE
+print(rmsetest_modelquad)
+print(msetest_modelquad)
+```
+```{r}
+MAPEtest_modelquad <- mape(test_data, predict_modelquad)
+MAPEtest_modelquad
+```
+```{r}
+MAEtest_modelquad <- mae(test_data, predict_modelquad)
+MAEtest_modelquad
+```
+
+## TSR : Model Lag 1 (Yt = a + bt+ cYt-1)
+
+### Membuat model
+
+```{r}
+n = nrow(tsr_data)
+yt = tsr_data$Unemployment[2:(n)]
+yt
+length(yt)
+
+t = tsr_data$t[2:n]
+t
+
+yt1 = tsr_data$Unemployment[1:(n-1)]
+yt1
+
+modellag1 = lm(yt~t+yt1)
+```
+
+### Uji Signifikansi Parameter (Serentak + Parsial)
+
+```{r}
+summary(modellag1)
+```
+Untuk uji serentak : Karena pada uji F, p-value dibawah 0.1, maka setidaknya ada satu variabel yang signifikan berpengaruh terhadap Unemployment 
+Untuk uji parsial : Karena pada uji t, p-value dibawah 0.1, maka variabel yt1 berpengaruh signifikan terhadap Unemployment sementara variabel t dan intercept tidak berpengaruh signifikan terhadap Unemployment.
+
+### Uji Asumsi
+
+#### Uji Independensi (Nonautokorelasi)
+
+```{r}
+dwtest(modellag1, alternative="two.sided")
+```
+
+H0 : rho = 0 (rho independent / tidak ada autokorelasi), H1 : rho /= 0 Karena p-value \> alpha, maka gagal tolak H0. Artinya memenuhi karena tidak ada autokorelasi
+
+#### Uji Identik (Homoskedastisitas)
+
+```{r}
+bptest(modellag1)
+```
+
+H0 : residual identik (homoskedastisitas / varians konstan), H1 : residual tidak identik Karena p-value \< alpha, maka tolak H0. Uji terpenuhi karena varians konstan
+
+#### Uji Normalitas
+
+```{r}
+error_modelag1 <- residuals(modellag1)
+
+lillie.test(error_modelag1) 
+```
+
+H0 : residual berdist. normal, H1 : residual tidak berdist, normal Karena p-value \> alpha, maka gagal Tolak H0 -\> asumsi tidak terpenuhi karena residual tidak berdist. normal
+
+### Hitung Kriteria Kebaikan Model (RMSE)
+```{r}
+mse_modellag1 <- mean(error_modelag1^2)
+mse_modellag1
+```
+
+```{r}
+rmse_modellag1 <- sqrt(mean(error_modelag1^2))
+rmse_modellag1
+```
+### Hitung Kriteria Kebaikan Model (MAPE)
+```{r}
+MAPE_modellag1 <- mean(abs(error_modelag1 / train_data)) * 100
+MAPE_modellag1
+```
+
+### Hitung Kriteria Kebaikan Model (MAE)
+```{r}
+MAE_modellag1 <- mean(abs(error_modelag1))
+MAE_modellag1
+```
+
+### Forecasting
+
+```{r}
+# Nilai t untuk periode ke depan
+t_forecast <- seq(n + 1, n + 8)
+# Nilai yt1 untuk periode ke depan (nilai terbaru dari yt)
+yt1_forecast <- c(yt[n-1], yt[length(yt)], rep(NA, 6))
+for (i in 3:8) {
+  yt1_forecast[i] <- predict(modellag1, newdata = data.frame(t = t_forecast[i-1], yt1 = yt1_forecast[i-1]))
+}
+
+# Forecast menggunakan model
+forecast_values <- numeric(8)
+for (i in 1:8) {
+  forecast_values[i] <- predict(modellag1, newdata = data.frame(t = t_forecast[i], yt1 = yt1_forecast[i]))
+  yt1_forecast[i + 1] <- forecast_values[i]
+}
+forecast_values
+```
+```{r}
+errortest_modellag1 <- forecast_values - test_data
+
+msetest_modellag1 <- mean(errortest_modellag1^2)
+msetest_modellag1
+
+rmsetest_modellag1 <- sqrt(mean(errortest_modellag1^2))
+rmsetest_modellag1
+```
+
+```{r}
+MAPEtest_modellag1 <- mape(test_data, forecast_values)
+MAPEtest_modellag1
+```
+```{r}
+MAEtest_modellag1 <- mae(test_data, forecast_values)
+MAEtest_modellag1
+```
+
+# Double Exponential Smoothing
+
+```{r}
+m1 = ets(train_data, model="AAN", alpha = 0.1, beta = 0.1)
+m2 = ets(train_data, model="MAN", alpha = 0.1, beta = 0.1)
+m3 = ets(train_data, model="MMN", alpha = 0.1, beta = 0.1)
+
+m4 = ets(train_data, model="AAN", alpha = 0.5, beta = 0.5)
+m5 = ets(train_data, model="MAN", alpha = 0.5, beta = 0.5)
+m6 = ets(train_data, model="MMN", alpha = 0.5, beta = 0.5)
+
+m7 = ets(train_data, model="AAN", alpha = 0.9, beta = 0.9)
+m8 = ets(train_data, model="MAN", alpha = 0.9, beta = 0.9)
+m9 = ets(train_data, model="MMN", alpha = 0.9, beta = 0.9)
+
+m1
+m2
+m3
+m4
+m5
+m6
+m7
+m8
+m9
+```
+
+```{r}
+mmn1 = ets(train_data, model="MMN", alpha = 0.1, beta = 0.1)
+mmn2 = ets(train_data, model="MMN", alpha = 0.7, beta = 0.7)
+mmn3 = ets(train_data, model="MMN", alpha = 0.7, beta = 0.2)
+mmn4 = ets(train_data, model="MMN", alpha = 0.99, beta = 0.99)
+
+mmn1
+mmn2
+mmn3
+mmn4
+```
+
+```{r}
+error_mmn1 <- residuals(mmn1)
+rmse_mmn1 <- sqrt(mean(error_mmn1^2))
+rmse_mmn1
+
+mse_mmn1 <- mean(error_mmn1^2)
+mse_mmn1
+
+MAPE_mmn1 <- mean(abs(error_mmn1 / train_data)) * 100
+MAPE_mmn1
+
+MAE_mmn1 <- mean(abs(error_mmn1))
+MAE_mmn1
+```
+
+```{r}
+error_mmn2 <- residuals(mmn2)
+rmse_mmn2 <- sqrt(mean(error_mmn2^2))
+rmse_mmn2
+
+mse_mmn2 <- mean(error_mmn2^2)
+mse_mmn2
+
+MAPE_mmn2 <- mean(abs(error_mmn2 / train_data)) * 100
+MAPE_mmn2
+
+MAE_mmn2 <- mean(abs(error_mmn2))
+MAE_mmn2
+```
+
+```{r}
+error_mmn3 <- residuals(mmn3)
+rmse_mmn3 <- sqrt(mean(error_mmn3^2))
+rmse_mmn3
+
+mse_mmn3 <- mean(error_mmn3^2)
+mse_mmn3
+
+MAPE_mmn3 <- mean(abs(error_mmn3 / train_data)) * 100
+MAPE_mmn3
+
+MAE_mmn3 <- mean(abs(error_mmn3))
+MAE_mmn3
+
+```
+
+```{r}
+error_mmn4 <- residuals(mmn4)
+rmse_mmn4 <- sqrt(mean(error_mmn4^2))
+rmse_mmn4
+
+mse_mmn4 <- mean(error_mmn4^2)
+mse_mmn4
+
+MAPE_mmn4 <- mean(abs(error_mmn4 / train_data)) * 100
+MAPE_mmn4
+
+MAE_mmn4 <- mean(abs(error_mmn4))
+MAE_mmn4
+```
+
+```{r}
+forecast_mmn1 <- forecast(mmn1, h = 8)
+errortest_mmn1 = forecast_mmn1$mean - test_data
+errortest_mmn1
+
+rmsetest_mmn1 = sqrt(mean(errortest_mmn1^2))
+rmsetest_mmn1
+
+msetest_mmn1 = mean(errortest_mmn1^2)
+msetest_mmn1
+
+MAPEtest_mmn1 <- mape(test_data, forecast_mmn1$mean)
+MAPEtest_mmn1
+
+MAEtest_mmn1 <- mae(test_data, forecast_mmn1$mean)
+MAEtest_mmn1
+```
+
+```{r}
+forecast_mmn2 <- forecast(mmn2, h = 8)
+errortest_mmn2 = forecast_mmn2$mean - test_data
+errortest_mmn2
+
+rmsetest_mmn2 = sqrt(mean(errortest_mmn2^2))
+rmsetest_mmn2
+
+msetest_mmn2 = mean(errortest_mmn2^2)
+msetest_mmn2
+
+MAPEtest_mmn2 <- mape(test_data, forecast_mmn2$mean)
+MAPEtest_mmn2
+
+MAEtest_mmn2 <- mae(test_data, forecast_mmn2$mean)
+MAEtest_mmn2
+```
+
+```{r}
+forecast_mmn3 <- forecast(mmn3, h = 8)
+errortest_mmn3 = forecast_mmn3$mean - test_data
+errortest_mmn3
+
+rmsetest_mmn3 = sqrt(mean(errortest_mmn3^2))
+rmsetest_mmn3
+
+msetest_mmn3 = mean(errortest_mmn3^2)
+msetest_mmn3
+
+MAPEtest_mmn3 <- mape(test_data, forecast_mmn3$mean)
+MAPEtest_mmn3
+
+MAEtest_mmn3 <- mae(test_data, forecast_mmn3$mean)
+MAEtest_mmn3
+```
+
+```{r}
+forecast_mmn4 <- forecast(mmn4, h = 8)
+errortest_mmn4 = forecast_mmn4$mean - test_data
+errortest_mmn4
+
+rmsetest_mmn4 = sqrt(mean(errortest_mmn4^2))
+rmsetest_mmn4
+
+msetest_mmn4 = mean(errortest_mmn4^2)
+msetest_mmn4
+
+MAPEtest_mmn4 <- mape(test_data, forecast_mmn4$mean)
+MAPEtest_mmn4
+
+MAEtest_mmn4 <- mae(test_data, forecast_mmn4$mean)
+MAEtest_mmn4
+```
+
+```{r}
+forecast_mmn1_3years <- forecast(mmn1, h = 11)
+forecast_mmn1_3years
+
+# Plot the forecast with prediction intervals
+autoplot(forecast_mmn1_3years, xlab = "Time", ylab = "Values", main = "Forecast with 90% Prediction Intervals")
+```
+
+# Neural Network
+
+```{r}
+library(forecast)
+```
+
+```{r}
+nn1 = nnetar(train_data, p=1, size=1)
+nn2 = nnetar(train_data, p=1, size=2)
+nn3 = nnetar(train_data, p=1, size=3)
+nn4 = nnetar(train_data, p=1, size=4)
+nn5 = nnetar(train_data, p=1, size=5)
+nn6 = nnetar(train_data, p=1, size=6)
+nn7 = nnetar(train_data, p=1, size=7)
+nn8 = nnetar(train_data, p=2, size=1)
+nn9 = nnetar(train_data, p=2, size=2)
+nn10 = nnetar(train_data, p=2, size=3)
+nn11 = nnetar(train_data, p=2, size=4)
+nn12 = nnetar(train_data, p=2, size=5)
+nn13 = nnetar(train_data, p=2, size=6)
+nn14 = nnetar(train_data, p=2, size=7)
+nn15 = nnetar(train_data, p=3, size=1)
+nn16 = nnetar(train_data, p=3, size=2)
+nn17 = nnetar(train_data, p=3, size=3)
+nn18 = nnetar(train_data, p=3, size=4)
+nn19 = nnetar(train_data, p=3, size=5)
+nn20 = nnetar(train_data, p=3, size=6)
+```
+
+
+```{r}
+detach("package:Metrics", unload = TRUE)
+```
+
+
+```{r}
+accuracy(nn1)
+accuracy(nn2)
+accuracy(nn3)
+accuracy(nn4)
+accuracy(nn5)
+accuracy(nn6)
+accuracy(nn7)
+accuracy(nn8)
+accuracy(nn9)
+accuracy(nn10)
+accuracy(nn11)
+accuracy(nn12)
+accuracy(nn13)
+accuracy(nn14)
+accuracy(nn15)
+accuracy(nn16)
+accuracy(nn17)
+accuracy(nn18)
+accuracy(nn19)
+accuracy(nn20)
+```
+
+```{r}
+library(Metrics)
+```
+
+## Forecast
+```{r}
+predict_nn1 <- forecast(nn1, h=8)
+
+error_nn1 <- predict_nn1$mean - test_data
+error_nn1
+
+rmse_nn1 <- sqrt(mean(error_nn1^2))
+rmse_nn1
+
+mse_nn1 <- mean(error_nn1^2)
+mse_nn1
+
+MAPEtest_nn1 <- mape(test_data, predict_nn1$mean)
+MAPEtest_nn1
+
+MAEtest_nn1 <- mae(test_data, predict_nn1$mean)
+MAEtest_nn1
+
+forecast_nn1 <- forecast(nn1, h=11)
+forecast_nn1
+```
+
+```{r}
+predict_nn2 <- forecast(nn2, h=8)
+
+error_nn2 <- predict_nn2$mean - test_data
+error_nn2
+
+rmse_nn2 <- sqrt(mean(error_nn2^2))
+rmse_nn2
+
+mse_nn2 <- mean(error_nn2^2)
+mse_nn2
+
+MAPEtest_nn2 <- mape(test_data, predict_nn2$mean)
+MAPEtest_nn2
+
+MAEtest_nn2 <- mae(test_data, predict_nn2$mean)
+MAEtest_nn2
+```
+```{r}
+predict_nn3 <- forecast(nn3, h=8)
+
+error_nn3 <- predict_nn3$mean - test_data
+error_nn3
+
+rmse_nn3 <- sqrt(mean(error_nn3^2))
+rmse_nn3
+
+mse_nn3 <- mean(error_nn3^2)
+mse_nn3
+
+MAPEtest_nn3 <- mape(test_data, predict_nn3$mean)
+MAPEtest_nn3
+
+MAEtest_nn3 <- mae(test_data, predict_nn3$mean)
+MAEtest_nn3
+```
+
+```{r}
+predict_nn8 <- forecast(nn8, h=8)
+
+error_nn8 <- predict_nn8$mean - test_data
+error_nn8
+
+rmse_nn8 <- sqrt(mean(error_nn8^2))
+rmse_nn8
+
+mse_nn8 <- mean(error_nn8^2)
+mse_nn8
+
+MAPEtest_nn8 <- mape(test_data, predict_nn8$mean)
+MAPEtest_nn8
+
+MAEtest_nn8 <- mae(test_data, predict_nn8$mean)
+MAEtest_nn8
+```
+```{r}
+predict_nn9 <- forecast(nn9, h=8)
+
+error_nn9 <- predict_nn9$mean - test_data
+error_nn9
+
+rmse_nn9 <- sqrt(mean(error_nn9^2))
+rmse_nn9
+
+mse_nn9 <- mean(error_nn9^2)
+mse_nn9
+
+MAPEtest_nn9 <- mape(test_data, predict_nn9$mean)
+MAPEtest_nn9
+
+MAEtest_nn9 <- mae(test_data, predict_nn9$mean)
+MAEtest_nn9
+```
+
+```{r}
+predict_nn10 <- forecast(nn10, h=8)
+
+error_nn10 <- predict_nn10$mean - test_data
+error_nn10
+
+rmse_nn10 <- sqrt(mean(error_nn10^2))
+rmse_nn10
+
+mse_nn10 <- mean(error_nn10^2)
+mse_nn10
+
+MAPEtest_nn10 <- mape(test_data, predict_nn10$mean)
+MAPEtest_nn10
+
+MAEtest_nn10 <- mae(test_data, predict_nn10$mean)
+MAEtest_nn10
+```
+
+```{r}
+predict_nn20 <- forecast(nn20, h=8)
+
+error_nn20 <- predict_nn20$mean - test_data
+error_nn20
+
+rmse_nn20 <- sqrt(mean(error_nn20^2))
+rmse_nn20
+
+mse_nn20 <- mean(error_nn20^2)
+mse_nn20
+
+MAPEtest_nn20 <- mape(test_data, predict_nn20$mean)
+MAPEtest_nn20
+
+MAEtest_nn20 <- mae(test_data, predict_nn20$mean)
+MAEtest_nn20
+```
+
+
+```{r}
+plot(forecast(nn1), main="Forecast from NNAR(1,1)")
+plot(forecast(nn2), main="Forecast from NNAR(1,2)")
+plot(forecast(nn3), main="Forecast from NNAR(1,3)")
+plot(forecast(nn8), main="Forecast from NNAR(2,1)")
+plot(forecast(nn9), main="Forecast from NNAR(2,2)")
+plot(forecast(nn10), main="Forecast from NNAR(2,3)")
+```
+
+```{r}
+nn9$model
+nn10$model
+nn11$mode
+nn1$model
+nn2$model
+nn3$model
+```
+
+
